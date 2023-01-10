@@ -1,68 +1,85 @@
-// use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap};
 
-// use crate::{
-//     pipeline::{
-//         consumer::{ConsumerId},
-//         producer::{ProducerId},
-//     },
-// };
+use serde::{Deserialize, Serialize};
 
-// pub type ProducerHeap = BinaryHeap<(i64, ProducerId)>;
+use crate::pipeline::{
+    composite::Composite,
+    consumer::{Consume, ConsumerRef},
+    job::{Job, JobId},
+    producer::{Produce, ProducerRef},
+};
 
-// pub type ProducerMap = HashMap<ProducerId, Producer>;
+pub type JobHeap = BinaryHeap<(i64, JobId)>;
 
-// pub type ProducerConsumerMap = HashMap<ProducerId, ConsumerId>;
+pub type JobMap = HashMap<JobId, Job>;
 
-// pub type ConsumerMap = HashMap<ConsumerId, Consumer<Box<dyn Intermediate>>>;
+pub type ProducerMap = HashMap<ProducerRef, Vec<u8>>;
 
-// pub struct MemoryJobStore {
-//     next_producer: ProducerHeap,
-//     producers: ProducerMap,
-//     consumers: ConsumerMap,
-//     prod_cons: ProducerConsumerMap,
-// }
+pub type ConsumerMap = HashMap<ConsumerRef, Vec<u8>>;
 
-// impl MemoryJobStore {
-//     pub fn new() -> Self {
-//         MemoryJobStore {
-//             next_producer: BinaryHeap::new(),
-//             producers: HashMap::new(),
-//             consumers: HashMap::new(),
-//             prod_cons: HashMap::new(),
-//         }
-//     }
+pub struct MemoryJobStore {
+    next_job: JobHeap,
+    jobs: JobMap,
+    producers: ProducerMap,
+    consumers: ConsumerMap,
+}
 
-//     fn peek(&self) -> Option<ProducerId> {
-//         self.next_producer.peek().map(|i| i.1)
-//     }
+impl MemoryJobStore {
+    pub fn new() -> Self {
+        MemoryJobStore {
+            next_job: BinaryHeap::new(),
+            jobs: HashMap::new(),
+            producers: HashMap::new(),
+            consumers: HashMap::new(),
+        }
+    }
 
-//     fn pop(&mut self) -> Option<ProducerId> {
-//         self.next_producer.pop().map(|i| i.1)
-//     }
+    fn peek(&self) -> Option<JobId> {
+        self.next_job.peek().map(|i| i.1)
+    }
 
-//     pub fn insert(&mut self, producer_job: Producer<I>, consumer_job: Consumer<I>) {
-//         match producer_job.next_run() {
-//             Some(timestamp) => {
-//                 self.next_producer.push((timestamp, producer_job.id()));
-//                 Some(timestamp)
-//             }
-//             None => None,
-//         };
-//         self.prod_cons.insert(producer_job.id(), consumer_job.id());
-//         self.producers.insert(producer_job.id(), producer_job);
-//         self.consumers.insert(consumer_job.id(), consumer_job);
-//     }
+    fn pop(&mut self) -> Option<JobId> {
+        self.next_job.pop().map(|i| i.1)
+    }
 
-//     pub fn next(&mut self) -> Option<&Producer<I>> {
-//         self.peek()
-//             .and_then(|producer_id| self.producers.get(&producer_id))
-//     }
+    pub fn insert<P, C>(&mut self, job: Job, composite: Composite<P, C>)
+    where
+        P: Produce + Serialize,
+        C: Consume + Serialize,
+    {
+        match job.next_run() {
+            Some(timestamp) => {
+                self.next_job.push((timestamp, job.id()));
+                Some(timestamp)
+            }
+            None => None,
+        };
+        self.jobs.insert(job.id(), job);
+        self.producers.insert(
+            composite.producer_ref().clone(),
+            serde_json::to_vec(composite.producer()).unwrap(),
+        );
+        self.consumers.insert(
+            composite.consumer_ref().clone(),
+            serde_json::to_vec(composite.consumer()).unwrap(),
+        );
+    }
 
-//     pub fn get_producer(&self, id: &ProducerId) -> Option<&Producer<I>> {
-//         self.producers.get(id)
-//     }
+    pub fn get_producer<T: Produce + for<'de> Deserialize<'de>>(
+        &self,
+        id: &ProducerRef,
+    ) -> Option<T> {
+        self.producers
+            .get(id)
+            .map(|p| serde_json::from_slice(p).unwrap())
+    }
 
-//     pub fn get_consumer(&self, id: &ConsumerId) -> Option<&Consumer<I>> {
-//         self.consumers.get(id)
-//     }
-// }
+    pub fn get_consumer<T: Consume + for<'de> Deserialize<'de>>(
+        &self,
+        id: &ConsumerRef,
+    ) -> Option<T> {
+        self.consumers
+            .get(id)
+            .map(|c| serde_json::from_slice(c).unwrap())
+    }
+}

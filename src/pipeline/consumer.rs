@@ -1,27 +1,29 @@
-use super::Intermediate;
-
-type ConsumerFn<I> = dyn (FnMut(I)) + Send + Sync;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum ConsumeError {
     UNKNOWN,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum ConsumerType {
     String,
 }
 
-pub type ConsumerId = (ConsumerType, uuid::Uuid);
+pub type ConsumerId = uuid::Uuid;
+pub type ConsumerRef = (ConsumerType, ConsumerId);
 
 pub struct ConsumerEntry {}
 
 pub type ConsumeResult = Result<bool, Box<dyn std::error::Error>>;
 
 // TODO: Need better name
-pub trait Consume<I: Intermediate> {
-    fn consume(&mut self, intermediate: I) -> ConsumeResult;
+pub trait Consume {
+    type Input;
+    fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult;
 }
+
+pub trait SerializeConsume: Consume + Serialize + Send + 'static {}
 
 #[cfg(test)]
 mod tests {
@@ -38,9 +40,10 @@ mod tests {
         }
     }
 
-    impl<'a> Consume<String> for StringConsumer {
-        fn consume(&mut self, intermediate: String) -> ConsumeResult {
-            self.output_location.write(intermediate.as_bytes());
+    impl<'a> Consume for StringConsumer {
+        type Input = String;
+        fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult {
+            self.output_location.write(intermediate.as_bytes()).unwrap();
             Ok(true)
         }
     }
@@ -49,7 +52,7 @@ mod tests {
     fn str_consumer() {
         let temp_dir = temp_dir();
         let file_path = temp_dir.join("string_ouput.txt");
-        let mut file = File::create(file_path.clone()).unwrap();
+        let file = File::create(file_path.clone()).unwrap();
         let mut job = StringConsumer::new(Box::new(file));
         let to_write = "print this to a file";
         let result = job.consume(to_write.to_string());

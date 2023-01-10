@@ -1,3 +1,4 @@
+pub mod composite;
 pub mod consumer;
 pub mod job;
 pub mod producer;
@@ -7,5 +8,3 @@ pub enum OutputError {
 }
 
 pub type Output<I> = std::result::Result<I, OutputError>;
-
-pub trait Intermediate {}

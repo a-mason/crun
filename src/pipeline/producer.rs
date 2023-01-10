@@ -1,24 +1,21 @@
-use super::Intermediate;
+use serde::{Deserialize, Serialize};
 
-pub type ProducerId = (ProducerType, uuid::Uuid);
+pub type ProducerId = uuid::Uuid;
 
-#[derive(PartialEq, Debug)]
+pub type ProducerRef = (ProducerType, ProducerId);
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum ProducerType {
     String,
 }
 
-pub trait Produce<I: Intermediate> {
-    fn produce(&self) -> I;
+pub trait Produce {
+    type Output;
+    fn produce(&self) -> Self::Output;
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use cron::Schedule;
-
-    use crate::pipeline::{producer::ProducerType, Intermediate};
-
     use super::Produce;
 
     struct StringProducer<'a> {
@@ -26,14 +23,13 @@ mod tests {
     }
     impl<'a> StringProducer<'a> {
         pub fn new(message: &'a str) -> Self {
-            StringProducer { message: message }
+            StringProducer { message }
         }
     }
 
-    impl Intermediate for String {}
-
-    impl<'a> Produce<String> for StringProducer<'a> {
-        fn produce(&self) -> String {
+    impl<'a> Produce for StringProducer<'a> {
+        type Output = String;
+        fn produce(&self) -> Self::Output {
             self.message.to_string()
         }
     }

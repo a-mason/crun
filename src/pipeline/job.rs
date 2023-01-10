@@ -2,26 +2,28 @@ use std::{cmp::Ordering, fmt};
 
 use chrono::{TimeZone, Utc};
 use cron::Schedule;
+use uuid::Uuid;
 
-use super::{
-    consumer::ConsumerId,
-    producer::{ProducerId, ProducerType},
-};
+use super::{consumer::ConsumerRef, producer::ProducerRef};
+
+pub type JobId = uuid::Uuid;
 
 pub struct Job {
+    id: JobId,
     schedule: Schedule,
     last_check: Option<i64>,
     next_run: Option<i64>,
     limit_runs: usize,
-    producer: ProducerId,
-    consumer: ConsumerId,
+    producer: ProducerRef,
+    consumer: ConsumerRef,
 }
 
 impl Eq for Job {}
 
 impl PartialEq for Job {
     fn eq(&self, other: &Self) -> bool {
-        self.schedule == other.schedule
+        self.id == other.id
+            && self.schedule == other.schedule
             && self.last_check == other.last_check
             && self.next_run == other.next_run
             && self.limit_runs == other.limit_runs
@@ -63,12 +65,13 @@ impl fmt::Debug for Job {
 impl Job {
     pub fn new(
         schedule: Schedule,
-        producer: ProducerId,
-        consumer: ConsumerId,
+        producer: ProducerRef,
+        consumer: ConsumerRef,
         limit_runs: usize,
     ) -> Self {
         // TODO: validate limit_runs is greater than 0
         Job {
+            id: uuid::Uuid::new_v4(),
             producer,
             consumer,
             last_check: None,
@@ -80,13 +83,14 @@ impl Job {
 
     pub fn with_last_check(
         schedule: Schedule,
-        producer: ProducerId,
-        consumer: ConsumerId,
+        producer: ProducerRef,
+        consumer: ConsumerRef,
         limit_runs: usize,
         last_check: i64,
     ) -> Self {
         // TODO: validate limit_runs is greater than 0
         Job {
+            id: uuid::Uuid::new_v4(),
             producer,
             consumer,
             last_check: Some(last_check),
@@ -119,6 +123,10 @@ impl Job {
             .upcoming(chrono::Utc)
             .next()
             .map(|t| t.timestamp())
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 }
 
