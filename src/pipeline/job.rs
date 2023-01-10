@@ -2,32 +2,35 @@ use std::{cmp::Ordering, fmt};
 
 use chrono::{TimeZone, Utc};
 use cron::Schedule;
-use uuid::Uuid;
 
-use super::{Output, Produce, ProducerId, Intermediate};
+use super::{
+    consumer::ConsumerId,
+    producer::{ProducerId, ProducerType},
+};
 
-pub struct ProducerJob<I: Intermediate> {
+pub struct Job {
     schedule: Schedule,
-    producer: Box<dyn Produce<I>>,
     last_check: Option<i64>,
     next_run: Option<i64>,
     limit_runs: usize,
-    id: ProducerId,
+    producer: ProducerId,
+    consumer: ConsumerId,
 }
 
-impl<I: Intermediate> Eq for ProducerJob<I> {}
+impl Eq for Job {}
 
-impl<I: Intermediate> PartialEq for ProducerJob<I> {
+impl PartialEq for Job {
     fn eq(&self, other: &Self) -> bool {
         self.schedule == other.schedule
             && self.last_check == other.last_check
             && self.next_run == other.next_run
             && self.limit_runs == other.limit_runs
-            && self.id == other.id
+            && self.producer == other.producer
+            && self.consumer == other.consumer
     }
 }
 
-impl<I: Intermediate> Ord for ProducerJob<I> {
+impl Ord for Job {
     fn cmp(&self, other: &Self) -> Ordering {
         // We want to always get the Producer that needs to be run soonest
         // And break the tie with the Producer that was least recently run
@@ -38,16 +41,17 @@ impl<I: Intermediate> Ord for ProducerJob<I> {
     }
 }
 
-impl< I: Intermediate> PartialOrd for ProducerJob<I> {
+impl PartialOrd for Job {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<I: Intermediate> fmt::Debug for ProducerJob<I> {
+impl fmt::Debug for Job {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Job")
-            .field("id", &self.id)
+            .field("producer", &self.producer)
+            .field("consumer", &self.consumer)
             .field("schedule", &self.schedule)
             .field("last_check", &self.last_check)
             .field("next_run", &self.next_run)
@@ -56,40 +60,46 @@ impl<I: Intermediate> fmt::Debug for ProducerJob<I> {
     }
 }
 
-impl<I: Intermediate> ProducerJob<I> {
-    pub fn new(schedule: Schedule, producer: Box<dyn Produce<I>>, limit_runs: usize) -> Self {
+impl Job {
+    pub fn new(
+        schedule: Schedule,
+        producer: ProducerId,
+        consumer: ConsumerId,
+        limit_runs: usize,
+    ) -> Self {
         // TODO: validate limit_runs is greater than 0
-        ProducerJob {
-            id: Uuid::new_v4(),
+        Job {
+            producer,
+            consumer,
             last_check: None,
             next_run: schedule.upcoming(Utc).next().map(|f| f.timestamp()),
             limit_runs,
-            producer: producer,
             schedule,
         }
     }
 
     pub fn with_last_check(
         schedule: Schedule,
-        producer: Box<dyn Produce<I>>,
+        producer: ProducerId,
+        consumer: ConsumerId,
         limit_runs: usize,
         last_check: i64,
     ) -> Self {
         // TODO: validate limit_runs is greater than 0
-        ProducerJob {
-            id: Uuid::new_v4(),
+        Job {
+            producer,
+            consumer,
             last_check: Some(last_check),
             next_run: schedule.upcoming(Utc).next().map(|f| f.timestamp()),
             limit_runs,
-            producer,
             schedule,
         }
     }
 
-    pub fn check_and_run(&mut self) -> Vec<Output<I>> {
+    pub fn check(&mut self) -> usize {
         let now = chrono::Utc::now().timestamp();
         let last_check = self.last_check.unwrap_or(now);
-        let mut run_results = Vec::new();
+        let mut runs = 0;
         for event in self
             .schedule
             .after(&chrono::Utc.timestamp(last_check, 0))
@@ -98,17 +108,37 @@ impl<I: Intermediate> ProducerJob<I> {
             if event.timestamp() > now {
                 break;
             }
-            run_results.push((self.producer).run());
+            runs += 1;
         }
         self.last_check = Some(now);
-        run_results
+        runs
     }
 
     pub fn next_run(&self) -> Option<i64> {
-        self.schedule.upcoming(chrono::Utc).next().map(|t| { t.timestamp() })
+        self.schedule
+            .upcoming(chrono::Utc)
+            .next()
+            .map(|t| t.timestamp())
     }
+}
 
-    pub fn id(&self) -> Uuid {
-        self.id
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use cron::Schedule;
+
+    use crate::pipeline::{consumer::ConsumerType, job::Job, producer::ProducerType};
+
+    #[test]
+    fn schedule() {
+        let s: Schedule = Schedule::from_str("0 15 * * Mar,Jun Mon,Wed,Fri 2017").unwrap();
+        let p = (ProducerType::String, uuid::Uuid::new_v4());
+        let c = (ConsumerType::String, uuid::Uuid::new_v4());
+        let mut job = Job::with_last_check(s, p, c, 1, 0);
+        let count = job.check();
+        assert_eq!(1, count);
+        let count = job.check();
+        assert_eq!(0, count);
     }
 }
