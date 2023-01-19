@@ -31,19 +31,10 @@ mod tests {
 
     use super::{Consume, ConsumeResult};
 
-    struct StringConsumer {
-        output_location: Box<dyn Write>,
-    }
-    impl StringConsumer {
-        pub fn new(output_location: Box<dyn Write>) -> Self {
-            StringConsumer { output_location }
-        }
-    }
-
-    impl<'a> Consume for StringConsumer {
+    impl<W: Write> Consume for W {
         type Input = String;
         fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult {
-            self.output_location.write(intermediate.as_bytes()).unwrap();
+            self.write(intermediate.as_bytes()).unwrap();
             Ok(true)
         }
     }
@@ -52,10 +43,9 @@ mod tests {
     fn str_consumer() {
         let temp_dir = temp_dir();
         let file_path = temp_dir.join("string_ouput.txt");
-        let file = File::create(file_path.clone()).unwrap();
-        let mut job = StringConsumer::new(Box::new(file));
+        let mut file = File::create(file_path.clone()).unwrap();
         let to_write = "print this to a file";
-        let result = job.consume(to_write.to_string());
+        let result = file.consume(to_write.to_string());
         let file_contents = std::fs::read_to_string(file_path).unwrap();
         assert_eq!(to_write.to_string(), file_contents);
         assert!(result.unwrap());
