@@ -3,9 +3,9 @@ use std::collections::{BinaryHeap, HashMap};
 use serde::{Deserialize, Serialize};
 
 use crate::pipeline::{
-    composite::Composite,
     consumer::{Consume, ConsumerRef},
     job::{Job, JobId},
+    pipeline::Pipeline,
     producer::{Produce, ProducerRef},
 };
 
@@ -42,10 +42,10 @@ impl MemoryJobStore {
         self.next_job.pop().map(|i| i.1)
     }
 
-    pub fn insert<P, C>(&mut self, job: Job, composite: Composite<P, C>)
+    pub fn insert<P, O, C, I>(&mut self, job: Job, composite: Pipeline<P, O, C, I>)
     where
-        P: Produce + Serialize,
-        C: Consume + Serialize,
+        P: Produce<O> + Serialize,
+        C: Consume<I> + Serialize,
     {
         match job.next_run() {
             Some(timestamp) => {
@@ -65,19 +65,19 @@ impl MemoryJobStore {
         );
     }
 
-    pub fn get_producer<T: Produce + for<'de> Deserialize<'de>>(
+    pub fn get_producer<O: for<'de> Deserialize<'de>, T: Produce<O> + for<'de> Deserialize<'de>>(
         &self,
         id: &ProducerRef,
-    ) -> Option<T> {
+    ) -> Option<O> {
         self.producers
             .get(id)
             .map(|p| serde_json::from_slice(p).unwrap())
     }
 
-    pub fn get_consumer<T: Consume + for<'de> Deserialize<'de>>(
+    pub fn get_consumer<I: for<'de> Deserialize<'de>, T: Consume<I> + for<'de> Deserialize<'de>>(
         &self,
         id: &ConsumerRef,
-    ) -> Option<T> {
+    ) -> Option<I> {
         self.consumers
             .get(id)
             .map(|c| serde_json::from_slice(c).unwrap())

@@ -1,23 +1,27 @@
+use std::marker::PhantomData;
+
 use super::{
     consumer::{Consume, ConsumerRef},
     producer::{Produce, ProducerRef},
 };
 
-pub struct Composite<P, C>
+pub struct Pipeline<P, O, C, I>
 where
-    P: Produce,
-    C: Consume,
+    P: Produce<O>,
+    C: Consume<I>,
 {
     producer_ref: ProducerRef,
     producer: P,
     consumer_ref: ConsumerRef,
     consumer: C,
+    _output: PhantomData<O>,
+    _input: PhantomData<I>,
 }
 
-impl<P, C> Composite<P, C>
+impl<P, O, C, I> Pipeline<P, O, C, I>
 where
-    P: Produce,
-    C: Consume,
+    P: Produce<O>,
+    C: Consume<I>,
 {
     pub fn new(
         producer_ref: ProducerRef,
@@ -30,6 +34,8 @@ where
             producer,
             consumer_ref,
             consumer,
+            _input: PhantomData,
+            _output: PhantomData,
         }
     }
 

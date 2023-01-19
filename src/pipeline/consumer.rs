@@ -18,12 +18,11 @@ pub struct ConsumerEntry {}
 pub type ConsumeResult = Result<bool, Box<dyn std::error::Error>>;
 
 // TODO: Need better name
-pub trait Consume {
-    type Input;
-    fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult;
+pub trait Consume<I> {
+    fn consume(&mut self, intermediate: I) -> ConsumeResult;
 }
 
-pub trait SerializeConsume: Consume + Serialize + Send + 'static {}
+pub trait SerializeConsume<I>: Consume<I> + Serialize + Send + 'static {}
 
 #[cfg(test)]
 mod tests {
@@ -31,19 +30,9 @@ mod tests {
 
     use super::{Consume, ConsumeResult};
 
-    struct StringConsumer {
-        output_location: Box<dyn Write>,
-    }
-    impl StringConsumer {
-        pub fn new(output_location: Box<dyn Write>) -> Self {
-            StringConsumer { output_location }
-        }
-    }
-
-    impl<'a> Consume for StringConsumer {
-        type Input = String;
-        fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult {
-            self.output_location.write(intermediate.as_bytes()).unwrap();
+    impl<'a> Consume<String> for Box<dyn Write> {
+        fn consume(&mut self, intermediate: String) -> ConsumeResult {
+            self.write(intermediate.as_bytes()).unwrap();
             Ok(true)
         }
     }
@@ -53,7 +42,7 @@ mod tests {
         let temp_dir = temp_dir();
         let file_path = temp_dir.join("string_ouput.txt");
         let file = File::create(file_path.clone()).unwrap();
-        let mut job = StringConsumer::new(Box::new(file));
+        let mut job: Box<dyn Write> = Box::new(file);
         let to_write = "print this to a file";
         let result = job.consume(to_write.to_string());
         let file_contents = std::fs::read_to_string(file_path).unwrap();
