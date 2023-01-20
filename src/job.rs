@@ -136,7 +136,7 @@ mod tests {
 
     use cron::Schedule;
 
-    use crate::pipeline::{consumer::ConsumerType, job::Job, producer::ProducerType};
+    use crate::{consumer::ConsumerType, job::Job, producer::ProducerType};
 
     #[test]
     fn schedule() {

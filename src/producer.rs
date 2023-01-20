@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+pub enum OutputError {
+    UNKNOWN,
+}
+
+pub type Output<I> = std::result::Result<I, OutputError>;
+
 pub type ProducerId = uuid::Uuid;
 
 pub type ProducerRef = (ProducerType, ProducerId);

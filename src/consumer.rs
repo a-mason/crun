@@ -34,7 +34,7 @@ mod tests {
     impl<W: Write> Consume for W {
         type Input = String;
         fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult {
-            self.write(intermediate.as_bytes()).unwrap();
+            self.write_all(intermediate.as_bytes()).unwrap();
             Ok(true)
         }
     }

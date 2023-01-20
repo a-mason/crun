@@ -2,7 +2,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::pipeline::{
+use crate::{
     composite::Composite,
     consumer::{Consume, ConsumerRef},
     job::{Job, JobId},
