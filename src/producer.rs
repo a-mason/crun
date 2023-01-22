@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 pub enum OutputError {
@@ -18,6 +19,12 @@ pub enum ProducerType {
 pub trait Produce {
     type Output;
     fn produce(&self) -> Self::Output;
+}
+
+#[async_trait]
+pub trait AsyncProduce {
+    type Output;
+    async fn produce(&self) -> Self::Output;
 }
 
 #[cfg(test)]

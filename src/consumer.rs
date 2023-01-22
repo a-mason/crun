@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -21,6 +22,12 @@ pub type ConsumeResult = Result<bool, Box<dyn std::error::Error>>;
 pub trait Consume {
     type Input;
     fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult;
+}
+
+#[async_trait]
+pub trait AsyncConsume {
+    type Input;
+    async fn consume(&mut self, intermediate: Self::Input) -> ConsumeResult;
 }
 
 pub trait SerializeConsume: Consume + Serialize + Send + 'static {}
